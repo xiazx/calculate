@@ -6,29 +6,33 @@ import matplotlib.font_manager as fm
 import urllib.request
 import os
 
-# ==================== 1. 云端自动下载中文字体（彻底解决方块乱码） ====================
+# ==================== 1. 云端自动下载并强制刷新中文字体 ====================
 @st.cache_resource
 def load_chinese_font():
-    font_path = "wqy-zenhei.ttc"
+    font_path = "SimHei.ttf"
+    
+    # 如果本地没有该字体文件，则从稳定镜像下载
     if not os.path.exists(font_path):
-        # 从开源镜像稳定下载文泉驿微米黑字体
-        font_url = "https://github.com/google/fonts/raw/main/ofl/wqyzenhei/WQY-ZenHei.ttf"
+        font_url = "https://github.com/StellarCN/scp_zh/raw/master/fonts/SimHei.ttf"
         try:
             urllib.request.urlretrieve(font_url, font_path)
-        except Exception:
-            # 备用国内镜像源
-            try:
-                urllib.request.urlretrieve("https://github.com/anthonyfu/vscode-icon-themes/raw/main/fonts/wqy-zenhei.ttc", font_path)
-            except:
-                pass
-                
+        except Exception as e:
+            st.error(f"字体下载失败: {e}")
+            
     if os.path.exists(font_path):
+        # 注册字体
         fm.fontManager.addfont(font_path)
         prop = fm.FontProperties(fname=font_path)
-        plt.rcParams['font.sans-serif'] = [prop.get_name(), 'DejaVu Sans']
-    else:
-        plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
         
+        # 强制设置全局字体
+        plt.rcParams['font.sans-serif'] = [prop.get_name(), 'SimHei', 'DejaVu Sans']
+        
+        # 强制清空 Matplotlib 字体缓存以防不生效
+        try:
+            fm._rebuild()
+        except AttributeError:
+            pass # 兼容较新版本的 matplotlib
+            
     plt.rcParams['axes.unicode_minus'] = False
 
 load_chinese_font()
@@ -141,11 +145,9 @@ st.info("💡 柳叶刀循证模型已就绪。点击下方按钮即可生成【
 if st.button("▶ 运行长期趋势模拟与 ICU 专业双曲线对比分析", type="primary"):
     time_points = np.arange(0, var_years + 1)
     
-    # 柳叶刀自然史保守组风险率
     base_natural_bleed = 0.05 + (var_sm_grade * 0.01)
     cons_risk = np.array([1 - (1 - base_natural_bleed) ** t if t > 0 else 0 for t in time_points])
     
-    # 积极干预组风险率
     initial_morbidity = 0.15 if (var_use_embolization or var_use_microsurgery or var_use_gammaknife) else 0.0
     active_risk = np.array([
         initial_morbidity + (1 - initial_morbidity) * (1 - (1 - 0.015) ** t) 
@@ -154,8 +156,9 @@ if st.button("▶ 运行长期趋势模拟与 ICU 专业双曲线对比分析", 
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
     
-    ax1.plot(time_points, cons_risk * 100, label='保守观察组 (The Lancet Conservative)', color='black', linewidth=2.5, linestyle='--')
-    ax1.plot(time_points, active_risk * 100, label='积极干预策略组 (The Lancet Active Intervention)', color='#d62728', linewidth=2.5)
+    # 【图表中正常使用中文标题与中文图例】
+    ax1.plot(time_points, cons_risk * 100, label='保守观察组 (The Lancet 保守模型)', color='black', linewidth=2.5, linestyle='--')
+    ax1.plot(time_points, active_risk * 100, label='积极干预策略组 (The Lancet 积极干预)', color='#d62728', linewidth=2.5)
     
     ax1.set_title('AVM 长期累积不良风险趋势双曲线对比 (柳叶刀循证模型)', fontsize=12, fontweight='bold')
     ax1.set_xlabel('随访时间年限 (Years)', fontsize=10)
